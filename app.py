@@ -35,8 +35,8 @@ fecha_12_meses = ayer - pd.DateOffset(months=12)
 st.title("Dashboard de Ventas - Catusita")
 
 # Filtros interactivos
-lista_vendedores = ["Todos"] + df['nombre_vendedor'].unique().tolist()
-vendedor_especifico = st.selectbox('Selecciona un vendedor:', sorted(lista_vendedores))
+lista_vendedores = ["Todos"] + sorted(df['nombre_vendedor'].unique().tolist())
+vendedor_especifico = st.selectbox('Selecciona un vendedor:', lista_vendedores)
 
 lista_articulos = ["Todos"] + sorted(df['articulo'].unique().tolist())
 articulo_especifico = st.selectbox('Selecciona un artículo:', lista_articulos, index=0)
