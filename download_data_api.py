@@ -98,7 +98,42 @@ def clean_sales_data(file_path):
     
     return df
 
+def read_and_clean_old_data(file_path):
+    """Lee y combina todas las hojas de un archivo Excel, renombrando las columnas según la imagen."""
+    # Diccionario con los nuevos nombres de columnas
+    column_mapping = {
+        "CIA": "cia",
+        "Fecha": "fecha",
+        "Cliente": "cliente",
+        "Nombre Cliente": "nombre_cliente",
+        "Rubro": "rubro",
+        "Departamento": "departamento",
+        "Documento": "documento",
+        "Artículo": "articulo",
+        "Nombre de Artículo": "nombre_articulo",
+        "Fuente de Suministro": "fuente_suministro",
+        "Cantidad": "cantidad",
+        "Venta $": "venta_usd",
+        "Venta S/.": "venta_pen",
+        "Costo": "costo",
+        "Nombre Vendedor": "nombre_vendedor",
+        "Cobrador": "cobrador"
+    }
+    df_catusita = pd.read_excel(file_path, sheet_name="Sheet1")
+    lista_columnas = df_catusita.columns.tolist()
+    excel_file = pd.ExcelFile(file_path)
+    list_hojas = excel_file.sheet_names[1:]
+    for hoja in list_hojas:
+        df_catusita_hoja = pd.read_excel(file_path, sheet_name=hoja, header=None)
+        df_catusita_hoja.columns = lista_columnas
+        df_catusita = pd.concat([df_catusita, df_catusita_hoja], ignore_index=True)
+    df_catusita.rename(columns=column_mapping, inplace=True)
+    return df_catusita
+
 if __name__ == "__main__":
+    print("comenzando")
     # concatenate_monthly_data()
-    df_cleaned = clean_sales_data("df_sales.csv")
-    df_cleaned.to_csv("df_sales_cleaned.csv", index=False)
+    # df_cleaned = clean_sales_data("df_sales_diciembre.csv")
+    # df_cleaned.to_csv("df_sales_diciembre_cleaned.csv", index=False)
+    df_antiguo = read_and_clean_old_data("Data de venta 01.01.21 a 06.12.24.xls")
+    df_antiguo.to_csv("df_antiguo.csv", index=False, encoding="utf-8-sig")
