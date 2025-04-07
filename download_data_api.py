@@ -1,28 +1,49 @@
 import requests
 import pandas as pd
+import os
 from datetime import datetime, timedelta
 
-def download_monthly_data(start_date: str, end_date: str, url: str):
+def download_monthly_data(start_date: str, end_date: str, url: str, auth_token: str = None):
     """
-    Descarga datos desde la API para el rango de fechas especificado.
+    Descarga datos desde la API para el rango de fechas especificado, incluyendo headers opcionales.
+    
+    :param start_date: Fecha de inicio en formato 'YYYYMMDD'
+    :param end_date: Fecha de fin en formato 'YYYYMMDD'
+    :param url: URL de la API
+    :param auth_token: Token Bearer opcional
+    :return: DataFrame con los datos
     """
     params = {"Date1": start_date, "Date2": end_date}
-    response = requests.get(url, params=params)
-    
-    if response.status_code == 200:
+
+    # Agregar headers
+    headers = {
+        "Accept": "application/json"
+    }
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()  # Lanza excepción si no es 200
+
         data = response.json().get("data", [])
-        return pd.DataFrame(data)
-    else:
-        print(f"Error en la solicitud para {start_date} - {end_date}: {response.status_code}")
+        if isinstance(data, list):
+            return pd.DataFrame(data)
+        else:
+            print(f"⚠️ La respuesta de la API no contiene una lista válida para {start_date} - {end_date}")
+            return pd.DataFrame()
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error en la solicitud para {start_date} - {end_date}: {e}")
         return pd.DataFrame()
 
-def concatenate_monthly_data():
+def concatenate_monthly_data(start_date, end_date):
     """
     Descarga los datos mensualmente desde 2022-01-01 hasta la fecha actual.
     """
     url = "http://api.catusita.com:8083/api/sales/forDate"
-    start_date = datetime(2022, 1, 1)
-    end_date = datetime.today()
+    # start_date = datetime(2021, 1, 1)
+    # end_date = datetime.today()
     
     all_data = pd.DataFrame()
     
@@ -50,7 +71,7 @@ def concatenate_monthly_data():
         current_date = last_day_of_month + timedelta(days=1)
     
     # Guardar los datos en un CSV
-    all_data.to_csv("df_sales.csv", index=False)
+    all_data.to_csv("data/process/df_sales.csv", index=False)
     print("Descarga completa. Datos guardados en df_sales.csv")
 
 def clean_sales_data(file_path):
@@ -95,8 +116,37 @@ def clean_sales_data(file_path):
     # Crear columna de tipo de transacción
     df["tipo_transaccion"] = "venta"
     df.loc[df[["cantidad", "venta_pen", "venta_usd", "costo"]].lt(0).any(axis=1), "tipo_transaccion"] = "devolucion"
-    
+
+    df.to_csv("data/process/df_sales.csv", index=False)
+    print("Limpieza completa. Datos guardados en df_sales.csv")
     return df
+
+def merge_with_metas(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Une el DataFrame de ventas con las metas en base a 'fuente_suministro'.
+    """
+    metas_path = os.path.join("data", "raw", "catusita", "metas.xlsx")
+
+    if not os.path.exists(metas_path):
+        raise FileNotFoundError(f"No se encontró el archivo de metas: {metas_path}")
+
+    metas_df = pd.read_excel(metas_path)
+
+    if "fuente_suministro" not in df.columns:
+        raise KeyError("La columna 'fuente_suministro' no está en los datos de ventas.")
+    if "fuente_suministro" not in metas_df.columns:
+        raise KeyError("La columna 'fuente_suministro' no está en el archivo de metas.")
+
+    print("🔄 Realizando merge con archivo de metas...")
+    merged_df = df.merge(metas_df, on="fuente_suministro", how="left")
+
+    for col in ["familia", "segmento", "marca", "gestor"]:
+        if col in merged_df.columns:
+            merged_df[col] = merged_df[col].fillna("Desconocido")
+    if "meta" in merged_df.columns:
+        merged_df["meta"] = merged_df["meta"].fillna(0)
+
+    return merged_df
 
 def read_and_clean_old_data(file_path):
     """Lee y combina todas las hojas de un archivo Excel, renombrando las columnas según la imagen."""
@@ -132,8 +182,15 @@ def read_and_clean_old_data(file_path):
 
 if __name__ == "__main__":
     print("comenzando")
-    # concatenate_monthly_data()
-    # df_cleaned = clean_sales_data("df_sales_diciembre.csv")
-    # df_cleaned.to_csv("df_sales_diciembre_cleaned.csv", index=False)
-    df_antiguo = read_and_clean_old_data("Data de venta 01.01.21 a 06.12.24.xls")
-    df_antiguo.to_csv("df_antiguo.csv", index=False, encoding="utf-8-sig")
+    start_date = datetime(2021, 1, 1)
+    end_date = datetime.today() - timedelta(days=1)
+    concatenate_monthly_data(start_date, end_date)
+    
+    df_cleaned = clean_sales_data("data/process/df_sales.csv")
+    df_enriched = merge_with_metas(df_cleaned)
+    
+    df_enriched.to_csv("data/process/catusita_sales.csv", index=False)
+    print("✅ Proceso completado. Archivo guardado como catusita_sales.csv")
+
+    # df_antiguo = read_and_clean_old_data("Data de venta 01.01.21 a 06.12.24.xls")
+    # df_antiguo.to_csv("df_antiguo.csv", index=False, encoding="utf-8-sig")

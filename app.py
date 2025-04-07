@@ -27,7 +27,7 @@ if not st.session_state["logueado"]:
 
 # --- CONTENIDO DEL DASHBOARD ---
 # Cargar el archivo CSV
-ruta_csv = "df_sales_cleaned.csv"  # Ajusta esta ruta según la ubicación de tu archivo CSV
+ruta_csv = "data/process/catusita_sales.csv"  # Ajusta esta ruta según la ubicación de tu archivo CSV
 df = pd.read_csv(ruta_csv)
 
 # Convertir columna 'fecha' a datetime
